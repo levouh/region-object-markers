@@ -82,7 +82,7 @@ public class RegionObjectMarkersPlugin extends Plugin
 		overlayManager.add(debugOverlay);
 		pluginPanel = new RegionObjectMarkersPluginPanel(client, this, clientThread);
 		pluginPanel.rebuild();
-		BufferedImage icon = ImageUtil.loadImageResource(getClass(), "region_icon.png");
+		BufferedImage icon = ImageUtil.loadImageResource(getClass(), "/icon.png");
 		navigationButton = NavigationButton.builder().tooltip("Region Object Markers").icon(icon).priority(5).panel(pluginPanel).build();
 		clientToolbar.addNavigation(navigationButton);
 		clientThread.invokeLater(this::rebuildTrackedObjects);
