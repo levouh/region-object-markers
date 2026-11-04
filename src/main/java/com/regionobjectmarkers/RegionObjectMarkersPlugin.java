@@ -57,7 +57,7 @@ public class RegionObjectMarkersPlugin extends Plugin
 	@Getter private final List<RegionMarkerSection> sections = new ArrayList<>();
 	@Getter private final Map<TileObject, List<ObjectMarker>> matchedObjects = new IdentityHashMap<>();
 	@Getter private final Map<TileObject, String> debugObjects = new IdentityHashMap<>();
-	private final Map<String, List<ObjectMarker>> activeMarkersByName = new HashMap<>();
+	private final Map<String, List<ActiveMarker>> activeMarkersByName = new HashMap<>();
 	private final List<WildcardMarker> activeWildcardMarkers = new ArrayList<>();
 	@Inject private Client client;
 	@Inject private ClientThread clientThread;
@@ -215,7 +215,11 @@ public class RegionObjectMarkersPlugin extends Plugin
 	}
 	private int currentPlayerRegionId()
 	{
-		return client.getLocalPlayer() == null ? -1 : client.getLocalPlayer().getWorldLocation().getRegionID();
+		if (client.getLocalPlayer() == null)
+		{
+			return -1;
+		}
+		return WorldPoint.fromLocalInstance(client, client.getLocalPlayer().getLocalLocation(), client.getPlane()).getRegionID();
 	}
 	boolean isDebugHoverInfo() { return debugEnabled(DEBUG_HOVER_KEY, true); }
 	boolean isDebugObjectLabels() { return debugEnabled(DEBUG_LABELS_KEY, true); }
@@ -311,14 +315,15 @@ public class RegionObjectMarkersPlugin extends Plugin
 		activeWildcardMarkers.clear();
 		for (RegionMarkerSection section : sections)
 		{
-			if (!section.isVisible() || !isPlayerInSectionRegion(section)) continue;
+			if (!section.isVisible()) continue;
 			for (ObjectMarker marker : section.getObjects())
 			{
 				if (!marker.isVisible() || Strings.isNullOrEmpty(marker.getName())) continue;
 				String name = marker.getName().trim().toLowerCase(java.util.Locale.ROOT);
 				if (name.isEmpty()) continue;
-				if (name.indexOf('*') >= 0) activeWildcardMarkers.add(new WildcardMarker(Pattern.compile(Pattern.quote(name).replace("*", "\\E.*\\Q"), Pattern.CASE_INSENSITIVE), marker));
-				else activeMarkersByName.computeIfAbsent(name, ignored -> new ArrayList<>()).add(marker);
+				ActiveMarker activeMarker = new ActiveMarker(section, marker);
+				if (name.indexOf('*') >= 0) activeWildcardMarkers.add(new WildcardMarker(Pattern.compile(Pattern.quote(name).replace("*", "\\E.*\\Q"), Pattern.CASE_INSENSITIVE), activeMarker));
+				else activeMarkersByName.computeIfAbsent(name, ignored -> new ArrayList<>()).add(activeMarker);
 			}
 		}
 	}
@@ -327,17 +332,24 @@ public class RegionObjectMarkersPlugin extends Plugin
 		matchedObjects.remove(object);
 		String objectName = client.getObjectDefinition(object.getId()).getName();
 		if (Strings.isNullOrEmpty(objectName) || "null".equalsIgnoreCase(objectName)) return;
+		WorldPoint sourcePoint = WorldPoint.fromLocalInstance(client, object.getLocalLocation(), object.getPlane());
+		int sourceRegionId = sourcePoint.getRegionID();
 		if (isDebugObjectLabels())
 		{
-			WorldPoint sourcePoint = WorldPoint.fromLocalInstance(client, object.getLocalLocation(), object.getPlane());
-			debugObjects.put(object, objectName + " [region " + sourcePoint.getRegionID() + "]");
+			debugObjects.put(object, objectName + " [region " + sourceRegionId + "]");
 		}
 		if (activeMarkersByName.isEmpty() && activeWildcardMarkers.isEmpty()) return;
 		String normalizedName = objectName.toLowerCase(java.util.Locale.ROOT);
 		List<ObjectMarker> matches = new ArrayList<>();
-		List<ObjectMarker> exactMatches = activeMarkersByName.get(normalizedName);
-		if (exactMatches != null) matches.addAll(exactMatches);
-		for (WildcardMarker wildcard : activeWildcardMarkers) if (wildcard.pattern.matcher(normalizedName).matches()) matches.add(wildcard.marker);
+		List<ActiveMarker> exactMatches = activeMarkersByName.get(normalizedName);
+		if (exactMatches != null)
+		{
+			for (ActiveMarker match : exactMatches) if (match.matchesRegion(sourceRegionId)) matches.add(match.marker);
+		}
+		for (WildcardMarker wildcard : activeWildcardMarkers)
+		{
+			if (wildcard.pattern.matcher(normalizedName).matches() && wildcard.marker.matchesRegion(sourceRegionId)) matches.add(wildcard.marker.marker);
+		}
 		if (!matches.isEmpty()) matchedObjects.put(object, matches);
 	}
 	private void untrack(TileObject object)
@@ -350,8 +362,25 @@ public class RegionObjectMarkersPlugin extends Plugin
 	private static final class WildcardMarker
 	{
 		private final Pattern pattern;
+		private final ActiveMarker marker;
+		private WildcardMarker(Pattern pattern, ActiveMarker marker) { this.pattern = pattern; this.marker = marker; }
+	}
+
+	private static final class ActiveMarker
+	{
+		private final RegionMarkerSection section;
 		private final ObjectMarker marker;
-		private WildcardMarker(Pattern pattern, ObjectMarker marker) { this.pattern = pattern; this.marker = marker; }
+
+		private ActiveMarker(RegionMarkerSection section, ObjectMarker marker)
+		{
+			this.section = section;
+			this.marker = marker;
+		}
+
+		private boolean matchesRegion(int regionId)
+		{
+			return section.isAllRegions() || section.getRegionIds().contains(regionId);
+		}
 	}
 
 }

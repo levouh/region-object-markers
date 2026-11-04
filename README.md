@@ -23,7 +23,7 @@ The icon row below the panel header has independent debug controls:
 
 - **Hover** shows the hovered tile outline, source world location, hovered region, and player region.
 - **Objects** draws object names with their source-region labels above scene objects.
-- **Regions** draws visible region boundaries and labels each region. In instances, it draws the 8×8 source chunks and labels connected chunks from the same source region.
+- **Regions** draws visible region boundaries and labels each region. In instances, it outlines connected source-region chunk groups and omits unmapped chunks.
 
 Use Hover to find a region ID, Objects to confirm an object name, and Regions when a busy scene makes region boundaries unclear.
 
