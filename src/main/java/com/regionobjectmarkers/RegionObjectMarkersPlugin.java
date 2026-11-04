@@ -6,6 +6,7 @@ import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
 import com.google.inject.Inject;
 import com.google.inject.Provides;
+import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -19,9 +20,9 @@ import lombok.Getter;
 import net.runelite.api.Client;
 import net.runelite.api.GameObject;
 import net.runelite.api.GameState;
-import net.runelite.api.MenuAction;
 import net.runelite.api.Tile;
 import net.runelite.api.TileObject;
+import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.DecorativeObjectDespawned;
 import net.runelite.api.events.DecorativeObjectSpawned;
@@ -29,7 +30,6 @@ import net.runelite.api.events.GameObjectDespawned;
 import net.runelite.api.events.GameObjectSpawned;
 import net.runelite.api.events.GroundObjectDespawned;
 import net.runelite.api.events.GroundObjectSpawned;
-import net.runelite.api.events.MenuEntryAdded;
 import net.runelite.api.events.WallObjectDespawned;
 import net.runelite.api.events.WallObjectSpawned;
 import net.runelite.client.callback.ClientThread;
@@ -49,12 +49,16 @@ public class RegionObjectMarkersPlugin extends Plugin
 {
 	public static final String CONFIG_GROUP = "region-object-markers";
 	private static final String CONFIG_KEY = "sections";
+	private static final String DEBUG_HOVER_KEY = "debugHoverInfo";
+	private static final String DEBUG_LABELS_KEY = "debugObjectLabels";
+	private static final String DEBUG_REGIONS_KEY = "debugRegions";
+	private static final String LEGACY_DEBUG_KEY = "debugUnderMouse";
 
 	@Getter private final List<RegionMarkerSection> sections = new ArrayList<>();
 	@Getter private final Map<TileObject, List<ObjectMarker>> matchedObjects = new IdentityHashMap<>();
+	@Getter private final Map<TileObject, String> debugObjects = new IdentityHashMap<>();
 	private final Map<String, List<ObjectMarker>> activeMarkersByName = new HashMap<>();
 	private final List<WildcardMarker> activeWildcardMarkers = new ArrayList<>();
-	@Getter private final List<Integer> hoveredMenuObjectIds = new ArrayList<>();
 	@Inject private Client client;
 	@Inject private ClientThread clientThread;
 	@Inject private ConfigManager configManager;
@@ -93,6 +97,7 @@ public class RegionObjectMarkersPlugin extends Plugin
 		overlayManager.remove(overlay);
 		overlayManager.remove(debugOverlay);
 		matchedObjects.clear();
+		debugObjects.clear();
 		activeMarkersByName.clear();
 		sections.clear();
 		clientToolbar.removeNavigation(navigationButton);
@@ -122,7 +127,6 @@ public class RegionObjectMarkersPlugin extends Plugin
 	}
 	@Subscribe public void onGameTick(GameTick event)
 	{
-		hoveredMenuObjectIds.clear();
 		int currentRegionId = currentPlayerRegionId();
 		if (currentRegionId != playerRegionId)
 		{
@@ -130,18 +134,6 @@ public class RegionObjectMarkersPlugin extends Plugin
 			rebuildTrackedObjects();
 			rebuild();
 		}
-	}
-	@Subscribe public void onMenuEntryAdded(MenuEntryAdded event)
-	{
-		MenuAction action = MenuAction.of(event.getType());
-		if (isObjectMenuAction(action) && !hoveredMenuObjectIds.contains(event.getIdentifier()))
-		{
-			hoveredMenuObjectIds.add(event.getIdentifier());
-		}
-	}
-	private boolean isObjectMenuAction(MenuAction action)
-	{
-		return action == MenuAction.ITEM_USE_ON_GAME_OBJECT || action == MenuAction.WIDGET_TARGET_ON_GAME_OBJECT || action == MenuAction.GAME_OBJECT_FIRST_OPTION || action == MenuAction.GAME_OBJECT_SECOND_OPTION || action == MenuAction.GAME_OBJECT_THIRD_OPTION || action == MenuAction.GAME_OBJECT_FOURTH_OPTION || action == MenuAction.GAME_OBJECT_FIFTH_OPTION || action == MenuAction.EXAMINE_OBJECT;
 	}
 	@Subscribe public void onGameObjectSpawned(GameObjectSpawned e) { track(e.getGameObject()); }
 	@Subscribe public void onGameObjectDespawned(GameObjectDespawned e) { untrack(e.getGameObject()); }
@@ -225,8 +217,39 @@ public class RegionObjectMarkersPlugin extends Plugin
 	{
 		return client.getLocalPlayer() == null ? -1 : client.getLocalPlayer().getWorldLocation().getRegionID();
 	}
-	boolean isDebugUnderMouse() { return Boolean.parseBoolean(configManager.getConfiguration(CONFIG_GROUP, "debugUnderMouse")); }
-	void toggleDebugUnderMouse() { configManager.setConfiguration(CONFIG_GROUP, "debugUnderMouse", !isDebugUnderMouse()); }
+	boolean isDebugHoverInfo() { return debugEnabled(DEBUG_HOVER_KEY, true); }
+	boolean isDebugObjectLabels() { return debugEnabled(DEBUG_LABELS_KEY, true); }
+	boolean isDebugRegions() { return debugEnabled(DEBUG_REGIONS_KEY, false); }
+	Color getDebugTextColor() { return config.debugTextColor(); }
+	void setDebugHoverInfo(boolean enabled)
+	{
+		configManager.setConfiguration(CONFIG_GROUP, DEBUG_HOVER_KEY, enabled);
+	}
+	void setDebugObjectLabels(boolean enabled)
+	{
+		configManager.setConfiguration(CONFIG_GROUP, DEBUG_LABELS_KEY, enabled);
+		clientThread.invokeLater(() ->
+		{
+			if (enabled)
+			{
+				rebuildTrackedObjects();
+			}
+			else
+			{
+				debugObjects.clear();
+			}
+		});
+	}
+	void setDebugRegions(boolean enabled)
+	{
+		configManager.setConfiguration(CONFIG_GROUP, DEBUG_REGIONS_KEY, enabled);
+	}
+	private boolean debugEnabled(String key, boolean legacyDefault)
+	{
+		String value = configManager.getConfiguration(CONFIG_GROUP, key);
+		if (value != null) return Boolean.parseBoolean(value);
+		return legacyDefault && Boolean.parseBoolean(configManager.getConfiguration(CONFIG_GROUP, LEGACY_DEBUG_KEY));
+	}
 	boolean matchesFilter(RegionMarkerSection section, Filter filter)
 	{
 		switch (filter)
@@ -264,6 +287,7 @@ public class RegionObjectMarkersPlugin extends Plugin
 	private void rebuildTrackedObjects()
 	{
 		matchedObjects.clear();
+		debugObjects.clear();
 		rebuildActiveMarkerIndex();
 		if (client.getGameState() != GameState.LOGGED_IN || client.getScene() == null) return;
 		for (Tile[][] plane : client.getScene().getTiles())
@@ -301,9 +325,14 @@ public class RegionObjectMarkersPlugin extends Plugin
 	private void track(TileObject object)
 	{
 		matchedObjects.remove(object);
-		if (activeMarkersByName.isEmpty()) return;
 		String objectName = client.getObjectDefinition(object.getId()).getName();
 		if (Strings.isNullOrEmpty(objectName) || "null".equalsIgnoreCase(objectName)) return;
+		if (isDebugObjectLabels())
+		{
+			WorldPoint sourcePoint = WorldPoint.fromLocalInstance(client, object.getLocalLocation(), object.getPlane());
+			debugObjects.put(object, objectName + " [region " + sourcePoint.getRegionID() + "]");
+		}
+		if (activeMarkersByName.isEmpty() && activeWildcardMarkers.isEmpty()) return;
 		String normalizedName = objectName.toLowerCase(java.util.Locale.ROOT);
 		List<ObjectMarker> matches = new ArrayList<>();
 		List<ObjectMarker> exactMatches = activeMarkersByName.get(normalizedName);
@@ -311,7 +340,11 @@ public class RegionObjectMarkersPlugin extends Plugin
 		for (WildcardMarker wildcard : activeWildcardMarkers) if (wildcard.pattern.matcher(normalizedName).matches()) matches.add(wildcard.marker);
 		if (!matches.isEmpty()) matchedObjects.put(object, matches);
 	}
-	private void untrack(TileObject object) { matchedObjects.remove(object); }
+	private void untrack(TileObject object)
+	{
+		matchedObjects.remove(object);
+		debugObjects.remove(object);
+	}
 	void rebuild() { if (pluginPanel != null) SwingUtilities.invokeLater(pluginPanel::rebuild); }
 
 	private static final class WildcardMarker

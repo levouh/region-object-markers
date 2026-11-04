@@ -14,6 +14,8 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.ImageIcon;
@@ -42,6 +44,10 @@ class RegionObjectMarkersPluginPanel extends PluginPanel
 	private static final ImageIcon ADD_HOVER_ICON;
 	private static final ImageIcon HOVER_INFO_ICON;
 	private static final ImageIcon HOVER_INFO_ACTIVE_ICON;
+	private static final ImageIcon OBJECT_LABELS_ICON;
+	private static final ImageIcon OBJECT_LABELS_ACTIVE_ICON;
+	private static final ImageIcon REGION_LINES_ICON;
+	private static final ImageIcon REGION_LINES_ACTIVE_ICON;
 
 	private static final ImageIcon[] FILTER_ICONS;
 	private static final String[] FILTER_TEXT = {"ALL", "R", "", ""};
@@ -50,7 +56,9 @@ class RegionObjectMarkersPluginPanel extends PluginPanel
 	private final JLabel copyMarkers = new JLabel(COPY_ICON);
 	private final JLabel pasteMarkers = new JLabel(PASTE_ICON);
 	private final JLabel markerAdd = new JLabel(ADD_ICON);
-	private final JLabel debugUnderMouse = new JLabel(HOVER_INFO_ICON);
+	private final JLabel debugHoverInfo = new JLabel();
+	private final JLabel debugObjectLabels = new JLabel();
+	private final JLabel debugRegions = new JLabel();
 	private final JLabel filterButton = new JLabel(FILTER_ICONS[0]);
 	private final IconTextField searchBar = new IconTextField();
 	private final PluginErrorPanel noMarkersPanel = new PluginErrorPanel();
@@ -80,9 +88,14 @@ class RegionObjectMarkersPluginPanel extends PluginPanel
 		final BufferedImage visibleImg = ImageUtil.loadImageResource(RegionObjectMarkersPlugin.class, "visible_icon.png");
 		final BufferedImage invisibleImg = ImageUtil.loadImageResource(RegionObjectMarkersPlugin.class, "invisible_icon.png");
 		final BufferedImage regionIcon = ImageUtil.loadImageResource(RegionObjectMarkersPlugin.class, "region_icon.png");
-		HOVER_INFO_ICON = new ImageIcon(ImageUtil.alphaOffset(regionIcon, 0.20f));
-		HOVER_INFO_ACTIVE_ICON = new ImageIcon(regionIcon);
-
+		final BufferedImage hoverInfoIcon = ImageUtil.loadImageResource(RegionObjectMarkersPlugin.class, "hover_info_icon.png");
+		final BufferedImage objectLabelsIcon = ImageUtil.loadImageResource(RegionObjectMarkersPlugin.class, "object_labels_icon.png");
+		HOVER_INFO_ICON = new ImageIcon(ImageUtil.alphaOffset(hoverInfoIcon, 0.20f));
+		HOVER_INFO_ACTIVE_ICON = new ImageIcon(hoverInfoIcon);
+		OBJECT_LABELS_ICON = new ImageIcon(ImageUtil.alphaOffset(objectLabelsIcon, 0.20f));
+		OBJECT_LABELS_ACTIVE_ICON = new ImageIcon(objectLabelsIcon);
+		REGION_LINES_ICON = new ImageIcon(ImageUtil.alphaOffset(regionIcon, 0.20f));
+		REGION_LINES_ACTIVE_ICON = new ImageIcon(regionIcon);
 		FILTER_ICONS = new ImageIcon[]
 		{
 			new ImageIcon(ImageUtil.alphaOffset(visibleImg, 0.0f)),
@@ -113,7 +126,7 @@ class RegionObjectMarkersPluginPanel extends PluginPanel
 		northPanel.setBorder(new EmptyBorder(1, 0, 10, 0));
 
 		JPanel titlePanel = new JPanel(new BorderLayout());
-		titlePanel.setBorder(new EmptyBorder(1, 3, 10, 7));
+		titlePanel.setBorder(new EmptyBorder(1, 3, 2, 7));
 
 		JPanel markerButtons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 7, 3));
 		markerButtons.setPreferredSize(new Dimension(100, 24));
@@ -186,8 +199,19 @@ class RegionObjectMarkersPluginPanel extends PluginPanel
 
 		searchPanel.add(searchBar, BorderLayout.WEST);
 		searchPanel.add(filterButton, BorderLayout.EAST);
+		JPanel debugPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
+		debugPanel.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		debugPanel.setBorder(new EmptyBorder(0, 3, 7, 7));
+		debugPanel.add(debugHoverInfo);
+		debugPanel.add(debugObjectLabels);
+		debugPanel.add(debugRegions);
 
-		northPanel.add(titlePanel, BorderLayout.NORTH);
+		JPanel headerPanel = new JPanel();
+		headerPanel.setLayout(new BoxLayout(headerPanel, BoxLayout.Y_AXIS));
+		headerPanel.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		headerPanel.add(titlePanel);
+		headerPanel.add(debugPanel);
+		northPanel.add(headerPanel, BorderLayout.NORTH);
 		northPanel.add(searchPanel, BorderLayout.CENTER);
 
 		JPanel centerPanel = new JPanel(new BorderLayout());
@@ -266,20 +290,15 @@ class RegionObjectMarkersPluginPanel extends PluginPanel
 			}
 		});
 
-		debugUnderMouse.setToolTipText("Show information about the hovered tile and objects");
-		debugUnderMouse.setIcon(plugin.isDebugUnderMouse() ? HOVER_INFO_ACTIVE_ICON : HOVER_INFO_ICON);
-		debugUnderMouse.addMouseListener(new MouseAdapter()
-		{
-			@Override public void mousePressed(MouseEvent e)
-			{
-				plugin.toggleDebugUnderMouse();
-				debugUnderMouse.setIcon(plugin.isDebugUnderMouse() ? HOVER_INFO_ACTIVE_ICON : HOVER_INFO_ICON);
-			}
-		});
+		configureDebugIcon(debugHoverInfo, plugin::isDebugHoverInfo, HOVER_INFO_ICON, HOVER_INFO_ACTIVE_ICON,
+			"Hover info: show hovered tile, source location, and player region", plugin::setDebugHoverInfo);
+		configureDebugIcon(debugObjectLabels, plugin::isDebugObjectLabels, OBJECT_LABELS_ICON, OBJECT_LABELS_ACTIVE_ICON,
+			"Object labels: show object names and source regions", plugin::setDebugObjectLabels);
+		configureDebugIcon(debugRegions, plugin::isDebugRegions, REGION_LINES_ICON, REGION_LINES_ACTIVE_ICON,
+			"Region lines: draw and label every visible map region", plugin::setDebugRegions);
 
 		markerButtons.add(pasteMarkers);
 		markerButtons.add(copyMarkers);
-		markerButtons.add(debugUnderMouse);
 		markerButtons.add(markerAdd);
 
 		centerPanel.add(markerView, BorderLayout.NORTH);
@@ -323,6 +342,21 @@ class RegionObjectMarkersPluginPanel extends PluginPanel
 	public String getSearchText()
 	{
 		return searchBar.getText();
+	}
+
+	private void configureDebugIcon(JLabel control, BooleanSupplier enabled, ImageIcon inactiveIcon, ImageIcon activeIcon, String tooltip, Consumer<Boolean> onChange)
+	{
+		control.setToolTipText(tooltip);
+		control.setIcon(enabled.getAsBoolean() ? activeIcon : inactiveIcon);
+		control.addMouseListener(new MouseAdapter()
+		{
+			@Override public void mousePressed(MouseEvent event)
+			{
+				boolean newValue = !enabled.getAsBoolean();
+				onChange.accept(newValue);
+				control.setIcon(newValue ? activeIcon : inactiveIcon);
+			}
+		});
 	}
 
 	private void copyMarkers()

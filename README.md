@@ -17,9 +17,15 @@ Most configuration is done from the **Object Markers** side panel:
 
 The import/export icons copy or restore the currently searched and filtered sections. Search matches section names.
 
-## Hover information
+## Debug controls
 
-Click the region-information icon in the panel header to toggle hover information. It shows the hovered tile outline, world location, hovered region, player region, and object names/IDs under the cursor. It is useful for finding a region ID or confirming an object name before adding a marker.
+The icon row below the panel header has independent debug controls:
+
+- **Hover** shows the hovered tile outline, source world location, hovered region, and player region.
+- **Objects** draws object names with their source-region labels above scene objects.
+- **Regions** draws visible region boundaries and labels each region. In instances, it draws the 8×8 source chunks and labels connected chunks from the same source region.
+
+Use Hover to find a region ID, Objects to confirm an object name, and Regions when a busy scene makes region boundaries unclear.
 
 ## Settings
 
@@ -28,6 +34,7 @@ The normal RuneLite Settings panel only controls defaults for new object markers
 - **Default highlight style**
 - **Default fill color**
 - **Default outline color**
+- **Debug text color**
 
 Existing markers keep their own values. All section and object configuration is stored in the active RuneLite profile and is primarily managed through the side panel.
 

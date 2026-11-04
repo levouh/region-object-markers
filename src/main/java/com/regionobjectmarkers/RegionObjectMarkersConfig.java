@@ -27,4 +27,10 @@ public interface RegionObjectMarkersConfig extends Config
 	{
 		return Color.GREEN;
 	}
+
+	@ConfigItem(keyName = "debugTextColor", name = "Debug text color", description = "Text color used by hover information and scene object labels")
+	default Color debugTextColor()
+	{
+		return Color.GREEN;
+	}
 }
