@@ -12,7 +12,7 @@ Most configuration is done from the **Object Markers** side panel:
 - Give the section a name with its pencil icon, then save with the green checkmark.
 - Under **Region Selection**, enable **All regions** or edit the comma-separated **Region IDs** list. Saved IDs are retained while All regions is enabled.
 - Under **Object Markers**, add one or more object names. Use the pencil/checkmark controls to edit and save a name.
-- Choose a highlight style: **Hull**, **Clickbox**, **Tile**, or **Outline**. Fill and Outline controls set the corresponding colors.
+- Choose a highlight style: **Hull**, **Clickbox**, **Tile**, or **Outline**. Use **Interact** to only match objects with an in-game object action. Fill and Outline controls set the corresponding colors; the number beside Outline controls its thickness, where `0` disables it.
 - Eye icons show or hide a whole section or one object marker. The top filter cycles through all, current-region, shown, and hidden sections.
 
 The import/export icons copy or restore the currently searched and filtered sections. Search matches section names.
@@ -34,6 +34,8 @@ The normal RuneLite Settings panel only controls defaults for new object markers
 - **Default highlight style**
 - **Default fill color**
 - **Default outline color**
+- **Default outline width**
+- **Default interactable-only**
 - **Debug text color**
 
 Existing markers keep their own values. All section and object configuration is stored in the active RuneLite profile and is primarily managed through the side panel.

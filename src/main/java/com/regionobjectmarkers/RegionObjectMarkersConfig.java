@@ -5,6 +5,7 @@ import net.runelite.client.config.Alpha;
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
+import net.runelite.client.config.Range;
 
 @ConfigGroup(RegionObjectMarkersPlugin.CONFIG_GROUP)
 public interface RegionObjectMarkersConfig extends Config
@@ -26,6 +27,19 @@ public interface RegionObjectMarkersConfig extends Config
 	default Color defaultOutlineColor()
 	{
 		return Color.GREEN;
+	}
+
+	@Range(min = 0, max = 10)
+	@ConfigItem(keyName = "defaultOutlineWidth", name = "Default outline width", description = "Outline width used by newly added object markers; 0 disables the outline")
+	default int defaultOutlineWidth()
+	{
+		return 2;
+	}
+
+	@ConfigItem(keyName = "defaultInteractableOnly", name = "Default interactable-only", description = "Only match objects with an available object action when creating new markers")
+	default boolean defaultInteractableOnly()
+	{
+		return false;
 	}
 
 	@ConfigItem(keyName = "debugTextColor", name = "Debug text color", description = "Text color used by hover information and scene object labels")

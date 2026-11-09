@@ -20,6 +20,7 @@ import lombok.Getter;
 import net.runelite.api.Client;
 import net.runelite.api.GameObject;
 import net.runelite.api.GameState;
+import net.runelite.api.ObjectComposition;
 import net.runelite.api.Tile;
 import net.runelite.api.TileObject;
 import net.runelite.api.coords.WorldPoint;
@@ -156,6 +157,8 @@ public class RegionObjectMarkersPlugin extends Plugin
 		marker.setStyle(config.defaultStyle());
 		marker.setFillColor(config.defaultFillColor());
 		marker.setOutlineColor(config.defaultOutlineColor());
+		marker.setOutlineWidth(config.defaultOutlineWidth());
+		marker.setInteractableOnly(config.defaultInteractableOnly());
 		return marker;
 	}
 	void removeSection(RegionMarkerSection section) { sections.remove(section); saveSections(); rebuild(); }
@@ -330,10 +333,13 @@ public class RegionObjectMarkersPlugin extends Plugin
 	private void track(TileObject object)
 	{
 		matchedObjects.remove(object);
-		String objectName = client.getObjectDefinition(object.getId()).getName();
+		ObjectComposition definition = client.getObjectDefinition(object.getId());
+		if (definition == null) return;
+		String objectName = definition.getName();
 		if (Strings.isNullOrEmpty(objectName) || "null".equalsIgnoreCase(objectName)) return;
 		WorldPoint sourcePoint = WorldPoint.fromLocalInstance(client, object.getLocalLocation(), object.getPlane());
 		int sourceRegionId = sourcePoint.getRegionID();
+		boolean interactable = hasObjectAction(definition);
 		if (isDebugObjectLabels())
 		{
 			debugObjects.put(object, objectName + " [region " + sourceRegionId + "]");
@@ -344,13 +350,20 @@ public class RegionObjectMarkersPlugin extends Plugin
 		List<ActiveMarker> exactMatches = activeMarkersByName.get(normalizedName);
 		if (exactMatches != null)
 		{
-			for (ActiveMarker match : exactMatches) if (match.matchesRegion(sourceRegionId)) matches.add(match.marker);
+			for (ActiveMarker match : exactMatches) if (match.matches(sourceRegionId, interactable)) matches.add(match.marker);
 		}
 		for (WildcardMarker wildcard : activeWildcardMarkers)
 		{
-			if (wildcard.pattern.matcher(normalizedName).matches() && wildcard.marker.matchesRegion(sourceRegionId)) matches.add(wildcard.marker.marker);
+			if (wildcard.pattern.matcher(normalizedName).matches() && wildcard.marker.matches(sourceRegionId, interactable)) matches.add(wildcard.marker.marker);
 		}
 		if (!matches.isEmpty()) matchedObjects.put(object, matches);
+	}
+	private boolean hasObjectAction(ObjectComposition definition)
+	{
+		String[] actions = definition.getActions();
+		if (actions == null) return false;
+		for (String action : actions) if (!Strings.isNullOrEmpty(action)) return true;
+		return false;
 	}
 	private void untrack(TileObject object)
 	{
@@ -377,9 +390,10 @@ public class RegionObjectMarkersPlugin extends Plugin
 			this.marker = marker;
 		}
 
-		private boolean matchesRegion(int regionId)
+		private boolean matches(int regionId, boolean interactable)
 		{
-			return section.isAllRegions() || section.getRegionIds().contains(regionId);
+			return (section.isAllRegions() || section.getRegionIds().contains(regionId))
+				&& (!marker.isInteractableOnly() || interactable);
 		}
 	}
 

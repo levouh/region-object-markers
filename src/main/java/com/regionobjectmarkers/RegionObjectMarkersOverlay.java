@@ -19,7 +19,7 @@ import net.runelite.client.ui.overlay.OverlayUtil;
 
 class RegionObjectMarkersOverlay extends Overlay
 {
-	private static final BasicStroke OUTLINE_STROKE = new BasicStroke(2);
+	private static final BasicStroke[] OUTLINE_STROKES = outlineStrokes();
 	private final RegionObjectMarkersPlugin plugin;
 
 	@Inject
@@ -47,13 +47,32 @@ class RegionObjectMarkersOverlay extends Overlay
 		if (shape == null) return;
 		if (marker.getStyle() == MarkerStyle.OUTLINE)
 		{
+			if (marker.getOutlineWidth() == 0) return;
 			graphics.setColor(marker.getOutlineColor());
-			graphics.setStroke(OUTLINE_STROKE);
+			graphics.setStroke(outlineStroke(marker));
 			graphics.draw(shape);
 			return;
 		}
+		if (marker.getOutlineWidth() == 0)
+		{
+			graphics.setColor(marker.getFillColor());
+			graphics.fill(shape);
+			return;
+		}
 		// OverlayUtil takes the outline colour first and the fill colour second.
-		OverlayUtil.renderPolygon(graphics, shape, marker.getOutlineColor(), marker.getFillColor(), OUTLINE_STROKE);
+		OverlayUtil.renderPolygon(graphics, shape, marker.getOutlineColor(), marker.getFillColor(), outlineStroke(marker));
+	}
+
+	private static BasicStroke outlineStroke(ObjectMarker marker)
+	{
+		return OUTLINE_STROKES[Math.max(1, Math.min(10, marker.getOutlineWidth())) - 1];
+	}
+
+	private static BasicStroke[] outlineStrokes()
+	{
+		BasicStroke[] strokes = new BasicStroke[10];
+		for (int width = 1; width <= strokes.length; width++) strokes[width - 1] = new BasicStroke(width);
+		return strokes;
 	}
 
 	private Shape convexHull(TileObject object)
